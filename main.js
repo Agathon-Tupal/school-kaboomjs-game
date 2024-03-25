@@ -1024,8 +1024,11 @@ scene("game", (LEVEL) => {
             }
         })
 
+        const numberOfPortalShards = level.get("portalShards").length;
+        const numberOfSpawners = level.get("portalShards").length;
+
         player.onUpdate(async() => {
-            if(level.get("spawner").length <= 0 && player.inventory.portal_shards == level.get("portalShards").length) {
+            if(numberOfSpawners <= 0 && player.inventory.portal_shards == numberOfPortalShards) {
                 player.canGoToNextLevel = true;
             } else {
                 player.canGoToNextLevel = false;
@@ -1062,26 +1065,25 @@ scene("game", (LEVEL) => {
         let activated = 0;
         let areAllStationersActivated = false;
 
-        if ((level.get("stationer").length > 0 && level.get("activator").length > 0 ) && level.get("activator").length === level.get("stationer").length) {
-            
-            onCollide("activator", "stationer", () => {
+        onCollide("activator", "stationer", () => {
             activated++;
             console.log(activated)
             if(activated >= level.get("stationer").length) {
                 areAllStationersActivated = true;
             }
-            })
+        })
     
-            onCollideEnd("activator", "stationer", () => {
-                activated--;
-                console.log(activated)
-            })
-        }
+        onCollideEnd("activator", "stationer", () => {
+            activated--;
+            console.log(activated)
+        })
 
+        const numberOfPortalShards = level.get("portalShards").length;
+        const numberOfSpawners = level.get("portalShards").length;
 
         if(
-            level.get("spawner").length <= 0 && 
-            level.get("portalShards").length <= 0 && 
+            numberOfPortalShards <= 0 && 
+            numberOfSpawners.length <= 0 && 
             areAllStationersActivated == true
         ) {
             player.canGoToNextLevel = true;
