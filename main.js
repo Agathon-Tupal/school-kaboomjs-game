@@ -32,11 +32,16 @@ loadSprite("note", "sprites/textures/note.png", {
 })
 loadSprite("bullet", "sprites/textures/bullet.png")
 loadSprite("bullet-explosion", "sprites/textures/bullet-explosion.png")
+loadSprite("activator", "sprites/textures/activator.png")
+loadSprite("stationer", "sprites/textures/stationer.png")
+loadSprite("portal", "sprites/textures/portal.png")
+loadSprite("lava", "sprites/textures/lava.png")
+loadSprite("portalShard", "sprites/textures/portalShard.png")
 
 
 // LEVEL 1
 loadSprite("dark_tile", "sprites/textures/level-1/lvl1-tile-up_scaled_3x_pngcrushed.png")
-loadSprite("level-1-bg", "sprites/backgrounds/lvl1_bg.jpg")
+loadSprite("level-1-bg", "sprites/backgrounds/level-1-bg.png")
 loadSprite("level-1-enemy", "sprites/enemies/level-1-enemy.png", {
     sliceX: 4,
     sliceY: 1,
@@ -135,7 +140,7 @@ scene("ending_scene", () => {
     setBackground(155, 144, 155)
 })
 
-scene("lose", () => {
+scene("failed", () => {
     setBackground(23, 23, 23);
 
     const title = add([
@@ -169,13 +174,13 @@ scene("game", (LEVEL) => {
 
     const createPlayer = () => {
         return [
-            sprite("hell_grass"),
+            rect(17, 28),
+            color(255, 3, 23),
             area(),
             body(),
-            outline(4),
             health(PLAYER_HEALTH),
             anchor("bot"),
-            scale(1),
+            scale(2.7),
             // player properties
             {
                 // status
@@ -184,9 +189,10 @@ scene("game", (LEVEL) => {
                 // items
                 inventory: {
                     portal_shards: 0,
-                    pickaxe: true,
                     healing_potions: 1,
-                    shears: false
+                    tools: [
+
+                    ]
                 },
                 weapons: {
                     gun: true
@@ -330,34 +336,51 @@ scene("game", (LEVEL) => {
             ],
             // PORTAL
             "@" : () => [
-                rect(32, 32),
-                color(CYAN),
+                sprite("portal"),
                 area(),
                 body({isStatic: true}),
                 anchor("bot"),
-                scale(1.5),
+                scale(3),
                 offscreen({hide: true}),
                 "portal",
             ],
             // ACTIVATOR
             ")" : () => [
-                rect(32, 32),
+                sprite("activator"),
                 area(),
                 body(),
                 anchor("bot"),
-                scale(1.5),
+                scale(3),
                 offscreen({hide: true}),
                 "activator", "movable"
             ],
             // STATIONER
             "(" : () => [
-                rect(32, 32),
+                sprite("stationer", {flipX: true}),
                 area(),
                 body({isStatic: true}),
                 anchor("bot"),
-                scale(1.5),
+                scale(3),
                 offscreen({hide: true}),
                 "stationer"
+            ],
+            "~" : () => [
+                sprite("lava"),
+                area(),
+                body({isStatic: true}),
+                anchor("bot"),
+                scale(3),
+                offscreen({hide: true}),
+                "lava"
+            ],
+            "*" : () => [
+                sprite("portalShard"),
+                area(),
+                body({isStatic: true}),
+                anchor("bot"),
+                scale(3),
+                offscreen({hide: true}),
+                "portalShard"
             ],
             // creates enemy
             "!" : () => createEnemy(),
@@ -548,24 +571,7 @@ scene("game", (LEVEL) => {
     onCollideEnd("player", "ejector", () => {
         player.jumpMultiplier = 1;
     });
-
-
-    let Activated = 0;
-    onCollide("activator", "stationer", () => {
-        Activated++;
-        console.log(Activated)
-        if(Activated >= level.get("stationer").length) {
-            console.log("canEscape")
-        }
-    })
-
-    onCollideEnd("activator", "stationer", () => {
-        Activated--;
-        console.log(Activated)
-        if(Activated >= level.get("stationer").length) {
-            console.log("canEscape")
-        }
-    })
+    
 
     // spikes 
     onCollide("player", "spike", () => {
@@ -574,16 +580,30 @@ scene("game", (LEVEL) => {
         debug.log("ouch")   // aray
     })
 
+    onCollide("player", "portalShard", (pl, ps) => {
+        destroy(ps),
+        addExclaim("obtained portal shard", pl.pos)
+        player.inventory.portal_shards += 1;
+        debug.log(player.inventory.portal_shards);
+    })
+
+    // lava
+    onCollide("player", "lava", (p, l) => {
+        go("failed")
+    })
+
       /* ----------------------- CHESTS ---------------------------------- */
 
     let currentChest = "";
     onCollide("player", "chest", (player, chest) => {
         currentChest = chest;
         onKeyPress("e", () => {
-            player.inventory.shears = true;
-            if(currentChest) {
-                destroy(currentChest);
-                addExclaim("obtained shears", player.pos)
+            if(LEVEL.item !== undefined) {
+                player.inventory.tools.push(LEVEL.item);
+                if(currentChest) {
+                    destroy(currentChest);
+                    addExclaim(`obtained ${LEVEL.item}`, player.pos)
+                }
             }
         })
     })
@@ -593,13 +613,17 @@ scene("game", (LEVEL) => {
     })
 
 
-    onCollide("player", "portal", () => {
-        if (player.canGoToNextLevel && currentLevel+1 !== LEVELS.length) {
-            currentLevel += 1;
-            go("game", LEVELS[currentLevel])
+    onCollide("player", "portal", (pl, po) => {
+        if (player.canGoToNextLevel == true) {
+            if (currentLevel+1 !== LEVEL.length) {
+                currentLevel += 1;
+                go("game", LEVELS[currentLevel])
+            } else {
+                go("ending_scene")
+            }
         } else {
-            go("ending_scene")
-        }
+            addExclaim("You cant yet enter", pl.pos)
+        }   
     })
 
     
@@ -607,10 +631,18 @@ scene("game", (LEVEL) => {
     /* ----------------------- DIALOG --------------------- */
     function addDialog() {
 		const pad = 16  // padding
+        const border = add([
+            pos(width()/2, height()/2),
+			rect(830, 510),
+			color(255, 255, 255),
+            anchor("center"),
+			z(100),
+            fixed()
+        ])
 		const bg = add([
-			pos(width()/2, height()/2),
+			pos(border.pos),
 			rect(820, 500),
-			color(0, 0, 0),
+			color(18, 32, 32),
             anchor("center"),
 			z(100),
             fixed()
@@ -626,6 +658,7 @@ scene("game", (LEVEL) => {
             scale(0.6)
 		])
         // hides the sprites by default
+        border.hidden = true;
 		bg.hidden = true
 		txt.hidden = true
 		return {
@@ -633,6 +666,7 @@ scene("game", (LEVEL) => {
 				txt.text = t
 				bg.hidden = false
 				txt.hidden = false
+                border.hidden = false;
 			},
 			dismiss() {
 				if (!this.active()) {
@@ -641,31 +675,36 @@ scene("game", (LEVEL) => {
 				txt.text = ""
 				bg.hidden = true
 				txt.hidden = true
+                border.hidden = true;
 			},
 			active() {
 				return !bg.hidden
 			},
 			destroy() {
 				bg.destroy()
+                border.destroy()
 				txt.destroy()
 			},
 		}
 	}
 
     function addExclaim(txt, p) {
+        
         const bg = add([
             rect(150, 40), 
             pos(p.x, p.y-50),
             anchor("center"),
-            color(0, 0, 0),
-            lifespan(2)
+            color(18, 32, 32),
+            lifespan(2),
+            z(100),
         ])
         const t1xt = add([
             text(txt, {font: "myFont"}),
             pos(bg.pos),
             anchor("center"),
             scale(0.4),
-            lifespan(2, {fade: 2})
+            lifespan(2, {fade: 2}),
+            z(100),
         ])
     }
 
@@ -720,7 +759,7 @@ scene("game", (LEVEL) => {
             currentSpawner = spawner;
             await onKeyPress("r", function() {
                 if (currentSpawner && spawner) {
-                    if (player.inventory.pickaxe === true) {
+                    if (player.inventory.tools.includes("pickaxe") === true) {
                         addExplode(player.pos, 1, 1, 1)
                         destroy(spawner)
                     } else {
@@ -819,21 +858,26 @@ scene("game", (LEVEL) => {
     player.onCollide("enemybullet", async ()=> {
         await damagePlayer(10)
     })
+
+    onCollide("enemybullet", "solid", async (eb, s) => {
+        await addExplode(s.pos, 0.5, 0.5, 0.5)
+        await destroy(eb);
+    })
     
   
 
-    // fall off the map
+    // fall off the map for some reason
     // more dying
     player.onUpdate(() => {
         // i think 5000 ang max
         if (player.pos.y > 5000 || player.pos.y < -5000) {
-            go("lose")
+            go("failed")
         }
     })
 
     // when you die
     on("death", "player", () => {
-        go("lose")
+        go("failed")
     })
 
     async function reverseGravity() {
@@ -948,9 +992,9 @@ scene("game", (LEVEL) => {
 
    // if oxygenloss is true for the level
     if (LEVEL.level === 1) {
-        loop(2, () => {
+        loop(0.8, () => {
             if (player.oxygen > 0) {
-                player.oxygen--;
+                player.oxygen -= 2;
             }
         })
 
@@ -980,19 +1024,26 @@ scene("game", (LEVEL) => {
             }
         })
 
+        player.onUpdate(async() => {
+            if(level.get("spawner").length <= 0 && player.inventory.portal_shards == level.get("portalShards").length) {
+                player.canGoToNextLevel = true;
+            } else {
+                player.canGoToNextLevel = false;
+            }
+        })
         
-
-        camScale(1.4)
+        
+        camScale(1)
     } else if (LEVEL.level === 2) {
         // slows the player down
-        player.speedMultiplier = 0.6;
+        player.speedMultiplier = 0.5;
 
         // for deserts and stuff
         let currentDesertFig  = "";
         onCollide("player", "desertfig", (player, desertfig) => {
             currentDesertFig = desertfig;
             onKeyPress("c", () => {
-                if(currentDesertFig && player.inventory.shears == true) {
+                if(currentDesertFig && player.inventory.tools.includes("shears") == true) {
                     addExplode(currentDesertFig.pos, 1, 1, 0.5)
                     destroy(currentDesertFig);
                 } else {
@@ -1008,6 +1059,39 @@ scene("game", (LEVEL) => {
         
         camScale(1.2)
     } else if (LEVEL.level === 3) {
+        let activated = 0;
+        let areAllStationersActivated = false;
+
+        if ((level.get("stationer").length > 0 && level.get("activator").length > 0 ) && level.get("activator").length === level.get("stationer").length) {
+            
+            onCollide("activator", "stationer", () => {
+            activated++;
+            console.log(activated)
+            if(activated >= level.get("stationer").length) {
+                areAllStationersActivated = true;
+            }
+            })
+    
+            onCollideEnd("activator", "stationer", () => {
+                activated--;
+                console.log(activated)
+            })
+        }
+
+
+        if(
+            level.get("spawner").length <= 0 && 
+            level.get("portalShards").length <= 0 && 
+            areAllStationersActivated == true
+        ) {
+            player.canGoToNextLevel = true;
+        } else {
+            player.canGoToNextLevel = false;
+        }
+
+    } else if (LEVEL.level === 4) {
+
+    } else if (LEVEL.level === 5) {
 
     }
 
